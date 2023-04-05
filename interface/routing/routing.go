@@ -12,6 +12,11 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	muxprom "gitlab.com/msvechla/mux-prometheus/pkg/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+
 )
 
 func CreateRouter(conn *pgxpool.Pool, logger *zap.Logger) *mux.Router {
@@ -56,6 +61,10 @@ func CreateRouter(conn *pgxpool.Pool, logger *zap.Logger) *mux.Router {
 	r.HandleFunc("/api/user/{nickname}/create", userInfo.HandleCreateUser).Methods("POST")
 	r.HandleFunc("/api/user/{nickname}/profile", userInfo.HandleUpdateUser).Methods("POST")
 	r.HandleFunc("/api/user/{nickname}/profile", userInfo.HandleGetUser).Methods("GET")
+
+	instrumentation := muxprom.NewDefaultInstrumentation()
+	r.Use(instrumentation.Middleware)
+	r.Path("/metrics").Handler(promhttp.Handler())
 
 	return r
 }
