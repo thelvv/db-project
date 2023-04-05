@@ -9,15 +9,27 @@ import (
 	"forum/interface/thread"
 	"forum/interface/user"
 	"go.uber.org/zap"
+	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	muxprom "gitlab.com/msvechla/mux-prometheus/pkg/middleware"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-
+	// muxprom "gitlab.com/msvechla/mux-prometheus/pkg/middleware"
 )
+
+var hitsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "hits_counter",
+	Help: "Number of hits to the server",
+})
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		hitsCounter.Inc()
+	})
+}
 
 func CreateRouter(conn *pgxpool.Pool, logger *zap.Logger) *mux.Router {
 	r := mux.NewRouter()
@@ -62,8 +74,12 @@ func CreateRouter(conn *pgxpool.Pool, logger *zap.Logger) *mux.Router {
 	r.HandleFunc("/api/user/{nickname}/profile", userInfo.HandleUpdateUser).Methods("POST")
 	r.HandleFunc("/api/user/{nickname}/profile", userInfo.HandleGetUser).Methods("GET")
 
-	instrumentation := muxprom.NewDefaultInstrumentation()
-	r.Use(instrumentation.Middleware)
+
+	// instrumentation := muxprom.NewDefaultInstrumentation()
+	prometheus.MustRegister(hitsCounter)
+	r.Use(loggingMiddleware)
+	// r.Path("/metrics").Handler(promhttp.Handler())
+	// r.Use(instrumentation.Middleware)
 	r.Path("/metrics").Handler(promhttp.Handler())
 
 	return r
